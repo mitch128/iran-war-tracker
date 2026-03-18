@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Iran · US · Israel War Tracker</title>
+<style>
+  :root {
+    --bg: #07070e;
+    --surface: #0e0e1a;
+    --border: #1e1e30;
+    --text: #e0d8c8;
+    --muted: #666;
+    --faint: #333;
+    --red: #cc3333;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: Georgia, 'Times New Roman', serif; min-height: 100vh; }
+
+  /* ── Header ── */
+  #header {
+    background: linear-gradient(135deg,#130808,#08080f,#080d13);
+    border-bottom: 2px solid var(--border);
+    padding: 12px 14px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  #header-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+  .eyebrow { font-size: 9px; letter-spacing: 3px; color: var(--red); font-family: monospace; margin-bottom: 3px; }
+  h1 { font-size: clamp(17px,4.5vw,23px); font-weight: 900; color: #f0e6d8; letter-spacing: -0.5px; line-height: 1.1; }
+  #meta { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+  #refresh-btn {
+    background: var(--red); color: #fff; border: none; border-radius: 8px;
+    padding: 9px 16px; font-size: 13px; font-weight: 800; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;
+    box-shadow: 0 2px 14px #cc333444;
+  }
+  #refresh-btn:disabled { background: #1c1c2a; color: #555; box-shadow: none; cursor: not-allowed; }
+  #refresh-btn .spin { display: inline-block; }
+  #refresh-btn.loading .spin { animation: spin 1s linear infinite; }
+
+  #progress-bar { height: 2px; background: #1a1a28; border-radius: 2px; overflow: hidden; margin-bottom: 10px; }
+  #progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg,var(--red),#ff6655); transition: width .3s; border-radius: 2px; }
+
+  /* ── View tabs ── */
+  #tabs { display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab {
+    background: rgba(255,255,255,.05); color: var(--muted);
+    border: 1px solid #2a2a3a; border-radius: 20px;
+    padding: 5px 13px; font-size: 11px; font-weight: 700;
+    cursor: pointer; white-space: nowrap; font-family: Georgia, serif;
+  }
+  .tab.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+  /* ── Main content ── */
+  #main { padding: 14px 12px 50px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── Empty state ── */
+  #empty { text-align: center; padding: 60px 20px; display: none; }
+  #empty h2 { font-size: 18px; color: #e0d8c8; margin-bottom: 10px; }
+  #empty p { font-size: 13px; color: var(--muted); line-height: 1.7; max-width: 360px; margin: 0 auto 24px; }
+  #empty-btn { background: var(--red); color: #fff; border: none; border-radius: 10px; padding: 14px 30px; font-size: 15px; font-weight: 800; cursor: pointer; }
+
+  /* ── VIEW 1: Cards grid ── */
+  #view-cards { display: none; }
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,300px),1fr)); gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; }
+  .card:hover { border-color: #333; }
+  .card-header { padding: 9px 12px; background: #0a0a14; border-bottom: 1px solid #181826; display: flex; justify-content: space-between; align-items: center; }
+  .card-title { display: flex; align-items: center; gap: 7px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .outlet-name { font-size: 12px; font-weight: 800; color: #ede5d5; }
+  .count-badge { font-size: 9px; font-weight: 700; border-radius: 8px; padding: 2px 7px; }
+  .card-articles { }
+  .card-item { padding: 9px 12px; border-bottom: 1px solid #111120; }
+  .card-item:last-child { border-bottom: none; }
+  .card-item-meta { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; font-size: 9px; color: var(--muted); font-family: monospace; }
+  .card-item-title { font-size: 12px; font-weight: 700; color: #ddd8cc; line-height: 1.35; }
+  .card-more { padding: 7px 12px; font-size: 10px; color: var(--muted); border-top: 1px solid #111120; }
+  .card-footer { padding: 7px 12px; background: #0a0a14; border-top: 1px solid #141420; }
+  .card-footer a { font-size: 10px; text-decoration: none; font-weight: 700; }
+
+  /* ── VIEW 2: Comparison matrix ── */
+  #view-matrix { display: none; }
+  .matrix-intro { font-size: 11px; color: var(--muted); margin-bottom: 12px; line-height: 1.7; }
+  .topic-section { margin-bottom: 22px; }
+  .topic-header { display: flex; align-items: center; gap: 8px; padding-bottom: 7px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .topic-icon { font-size: 14px; }
+  .topic-name { font-size: 13px; font-weight: 800; color: #e8e0d0; text-transform: capitalize; }
+  .topic-count { font-size: 10px; color: var(--faint); }
+  .matrix-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; min-width: 480px; }
+  th { padding: 5px 10px; text-align: left; font-size: 9px; color: var(--muted); font-weight: 700; letter-spacing: 1px; border-bottom: 1px solid var(--border); font-family: monospace; }
+  td { padding: 8px 10px; border-bottom: 1px solid #0f0f1c; vertical-align: top; }
+  tr { cursor: pointer; }
+  tr:hover td { background: #13131f; }
+  .source-badge { font-size: 9px; font-weight: 800; border-radius: 4px; padding: 2px 6px; white-space: nowrap; display: inline-block; }
+  .headline-cell { font-size: clamp(11px,3vw,13px); font-weight: 700; color: #ddd8cc; line-height: 1.35; }
+  .snippet-cell { font-size: 10px; color: #666; margin-top: 3px; font-style: italic; line-height: 1.4; }
+  .angle-badge { font-size: 8px; font-weight: 700; border-radius: 3px; padding: 2px 5px; white-space: nowrap; display: inline-block; }
+  .age-cell { font-size: 9px; color: var(--muted); font-family: monospace; white-space: nowrap; text-align: right; }
+
+  /* ── Modal ── */
+  #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 500; display: none; align-items: flex-end; justify-content: center; }
+  #modal-overlay.open { display: flex; }
+  #modal { background: #0e0e1a; border: 1px solid #2a2a3a; border-radius: 16px 16px 0 0; padding: 20px 18px 36px; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto; }
+  #modal-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; align-items: center; }
+  #modal-title { font-size: clamp(15px,4vw,18px); font-weight: 800; color: #f0e8d8; line-height: 1.4; margin-bottom: 10px; }
+  #modal-snippet { font-size: 13px; color: #888; line-height: 1.7; font-style: italic; margin-bottom: 18px; }
+  #modal-age { font-size: 10px; color: var(--muted); font-family: monospace; margin-bottom: 18px; }
+  #modal-link { display: block; background: var(--red); color: #fff; text-decoration: none; text-align: center; padding: 13px; border-radius: 9px; font-size: 14px; font-weight: 800; }
+  #modal-close { position: absolute; top: 16px; right: 18px; background: #1a1a28; border: 1px solid #2a2a3a; color: #aaa; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+
+  /* ── Sentiment colors ── */
+  .s-pro-israel    { color: #5cb88a; background: #0a2a1a; border: 1px solid #1a5a3a; }
+  .s-pro-iran      { color: #c8860a; background: #2a1a0a; border: 1px solid #5a3a1a; }
+  .s-neutral       { color: #8888bb; background: #1a1a2a; border: 1px solid #3a3a5a; }
+  .s-critical-us   { color: #cc4444; background: #2a0a0a; border: 1px solid #5a1a1a; }
+  .s-supportive-us { color: #4488cc; background: #0a1a2a; border: 1px solid #1a3a5a; }
+
+  /* ── Loading skeleton ── */
+  .skel { background: #1a1a28; border-radius: 3px; animation: pulse 1.5s ease-in-out infinite; }
+
+  /* ── Animations ── */
+  @keyframes spin  { to { transform: rotate(360deg); } }
+  @keyframes pulse { 0%,100%{opacity:.25}50%{opacity:.6} }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #0a0a10; }
+  ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="header-top">
+    <div>
+      <div class="eyebrow">● LIVE · REAL RSS FEEDS</div>
+      <h1>Iran · US · Israel</h1>
+      <div id="meta">War Tracker — 11 sources</div>
+    </div>
+    <button id="refresh-btn" onclick="loadNews()">
+      <span class="spin">↻</span> Refresh
+    </button>
+  </div>
+  <div id="progress-bar" style="display:none"><div id="progress-fill"></div></div>
+  <div id="tabs">
+    <button class="tab active" onclick="switchTab('cards')">📰 By Source</button>
+    <button class="tab" onclick="switchTab('matrix')">⚖️ Compare</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="empty">
+    <h2>Iran · US · Israel War Tracker</h2>
+    <p>Tap below to load real, live headlines from 11 news outlets — filtered for conflict coverage.</p>
+    <button id="empty-btn" onclick="loadNews()">↻ Load Headlines</button>
+  </div>
+
+  <div id="view-cards"></div>
+  <div id="view-matrix"></div>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay" onclick="closeModal()">
+  <div id="modal" onclick="event.stopPropagation()" style="position:relative">
+    <button id="modal-close" onclick="closeModal()">✕</button>
+    <div id="modal-meta"></div>
+    <div id="modal-title"></div>
+    <div id="modal-snippet"></div>
+    <div id="modal-age"></div>
+    <a id="modal-link" href="#" target="_blank" rel="noopener noreferrer">Read Full Article ↗</a>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let allData = {};
+let currentTab = 'cards';
+let fetchedAt = null;
+
+const FOCUS_ICON = { military:'⚔️', diplomatic:'🕊️', humanitarian:'🏥', political:'🏛️', economic:'📈', other:'📄' };
+const SENTIMENT_LABELS = {
+  'pro-israel': 'Pro-Israel', 'pro-iran': 'Pro-Iran',
+  'neutral': 'Neutral', 'critical-us': 'Critical-US', 'supportive-us': 'Pro-US'
+};
+
+// ── API call ──────────────────────────────────────────────────────────────────
+async function loadNews() {
+  const btn = document.getElementById('refresh-btn');
+  const bar = document.getElementById('progress-bar');
+  const fill = document.getElementById('progress-fill');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.innerHTML = '<span class="spin">↻</span> Loading…';
+  bar.style.display = 'block';
+  fill.style.width = '10%';
+
+  try {
+    // Animate progress bar while waiting
+    let prog = 10;
+    const ticker = setInterval(() => {
+      prog = Math.min(prog + 5, 85);
+      fill.style.width = prog + '%';
+    }, 400);
+
+    const res = await fetch('/api/news');
+    clearInterval(ticker);
+    fill.style.width = '100%';
+
+    if (!res.ok) throw new Error('Server returned ' + res.status);
+    const json = await res.json();
+
+    allData = json.outlets || {};
+    fetchedAt = json.fetchedAt;
+
+    const total = Object.values(allData).reduce((n, o) => n + (o.items?.length || 0), 0);
+    const sources = Object.values(allData).filter(o => o.items?.length > 0).length;
+    document.getElementById('meta').textContent =
+      `Updated ${new Date(fetchedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · ${sources}/11 sources · ${total} stories`;
+
+    document.getElementById('empty').style.display = 'none';
+    render();
+  } catch (e) {
+    alert('Could not load news: ' + e.message + '\n\nMake sure the server is running.');
+  } finally {
+    setTimeout(() => { bar.style.display = 'none'; fill.style.width = '0%'; }, 600);
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    btn.innerHTML = '<span class="spin">↻</span> Refresh';
+  }
+}
+
+// ── Classify articles client-side ─────────────────────────────────────────────
+function classifyFocus(title, snippet) {
+  const t = (title + ' ' + snippet).toLowerCase();
+  if (/missile|strike|bomb|attack|soldier|military|weapon|airstrike|drone|idf|irgc|tank|navy|air force|intercept|launcher/.test(t)) return 'military';
+  if (/ceasefire|deal|negotiate|diplomat|sanction|talk|summit|agreement|treaty|envoy/.test(t)) return 'diplomatic';
+  if (/civilian|hospital|school|children|killed|wounded|displaced|refugee|casualty|victim/.test(t)) return 'humanitarian';
+  if (/trump|netanyahu|congress|parliament|policy|election|government|minister|president/.test(t)) return 'political';
+  if (/oil|price|market|economy|gas|hormuz|trade|stock|barrel|inflation|shipping/.test(t)) return 'economic';
+  return 'other';
+}
+
+function classifySentiment(outletId, title) {
+  const t = title.toLowerCase();
+  const proIsrael = ['toi', 'haaretz', 'n12'];
+  const proIran = ['aljazeera'];
+  const usOutlets = ['cnn', 'cbs', 'fox', 'wsj'];
+  if (proIsrael.includes(outletId)) return 'pro-israel';
+  if (proIran.includes(outletId)) {
+    if (/civilians|school|hospital|heritage|killed|children/.test(t)) return 'pro-iran';
+    return 'neutral';
+  }
+  if (usOutlets.includes(outletId)) {
+    if (outletId === 'fox') return 'supportive-us';
+    if (/civilian|school|heritage|killed/.test(t)) return 'neutral';
+    return 'supportive-us';
+  }
+  return 'neutral';
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  if (currentTab === 'cards') renderCards();
+  else renderMatrix();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', (i === 0 && tab === 'cards') || (i === 1 && tab === 'matrix'));
+  });
+  document.getElementById('view-cards').style.display = tab === 'cards' ? 'block' : 'none';
+  document.getElementById('view-matrix').style.display = tab === 'matrix' ? 'block' : 'none';
+  if (Object.keys(allData).length > 0) render();
+}
+
+// ── Cards view ────────────────────────────────────────────────────────────────
+function renderCards() {
+  const el = document.getElementById('view-cards');
+  el.style.display = 'block';
+  const outlets = Object.values(allData);
+  if (!outlets.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = `<div class="cards-grid">${outlets.map(o => renderCard(o)).join('')}</div>`;
+}
+
+function renderCard(o) {
+  const items = o.items || [];
+  const countColor = items.length > 0 ? o.color : '#444';
+  const countBg = items.length > 0 ? o.color + '22' : '#141420';
+  const countBorder = items.length > 0 ? o.color + '44' : '#2a2a3a';
+
+  const preview = items.slice(0, 3).map(item => {
+    const focus = classifyFocus(item.title, item.snippet);
+    return `<div class="card-item" onclick="openModal(${JSON.stringify(JSON.stringify(item))}, '${o.id}', '${o.name}', '${o.color}')">
+      <div class="card-item-meta">
+        <span>${FOCUS_ICON[focus] || '📄'}</span>
+        <span>${item.age || ''}</span>
+      </div>
+      <div class="card-item-title">${escHtml(item.title)}</div>
+    </div>`;
+  }).join('');
+
+  const more = items.length > 3 ? `<div class="card-more">+${items.length - 3} more — tap card to see all</div>` : '';
+  const err = o.error ? `<div style="padding:12px;font-size:10px;color:#664444;font-family:monospace">${escHtml(o.error.slice(0,120))}</div>` : '';
+
+  return `<div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="dot" style="background:${o.color}"></div>
+        <span class="outlet-name">${escHtml(o.name)}</span>
+      </div>
+      <span class="count-badge" style="color:${countColor};background:${countBg};border:1px solid ${countBorder}">${items.length} stories</span>
+    </div>
+    ${err}${preview}${more}
+    <div class="card-footer"><a href="#" style="color:${o.color}" onclick="return false">→ ${escHtml(o.name)}</a></div>
+  </div>`;
+}
+
+// ── Matrix view ───────────────────────────────────────────────────────────────
+function renderMatrix() {
+  const el = document.getElementById('view-matrix');
+  el.style.display = 'block';
+
+  // Flatten all articles, classify them
+  const all = [];
+  Object.values(allData).forEach(o => {
+    (o.items || []).forEach(item => {
+      all.push({
+        ...item,
+        outletId: o.id, outletName: o.name, outletColor: o.color,
+        focus: classifyFocus(item.title, item.snippet),
+        sentiment: classifySentiment(o.id, item.title),
+      });
+    });
+  });
+
+  if (!all.length) { el.innerHTML = '<p style="color:#555;font-style:italic">No data yet — tap Refresh.</p>'; return; }
+
+  // Group by focus
+  const byFocus = {};
+  all.forEach(a => {
+    if (!byFocus[a.focus]) byFocus[a.focus] = [];
+    byFocus[a.focus].push(a);
+  });
+
+  const focusOrder = ['military','political','diplomatic','economic','humanitarian','other'];
+  const sections = focusOrder
+    .filter(f => byFocus[f]?.length)
+    .map(f => renderTopicSection(f, byFocus[f]))
+    .join('');
+
+  el.innerHTML = `
+    <p class="matrix-intro">Stories grouped by topic. Tap any row to read the article. Angle labels show each outlet's editorial framing.</p>
+    ${sections}`;
+}
+
+function renderTopicSection(focus, articles) {
+  const outletCount = new Set(articles.map(a => a.outletId)).size;
+  const rows = articles.map(a => {
+    const sClass = 's-' + (a.sentiment || 'neutral');
+    const sLabel = SENTIMENT_LABELS[a.sentiment] || 'Neutral';
+    const snippet = a.snippet ? `<div class="snippet-cell">${escHtml(a.snippet.slice(0,90))}${a.snippet.length>90?'…':''}</div>` : '';
+    const dataAttr = escAttr(JSON.stringify(a));
+    return `<tr onclick="openModalFromData('${dataAttr}')">
+      <td><span class="source-badge" style="color:${a.outletColor};background:${a.outletColor}22;border:1px solid ${a.outletColor}44">${escHtml(a.outletName.split(' ')[0])}</span></td>
+      <td><div class="headline-cell">${escHtml(a.title)}</div>${snippet}</td>
+      <td><span class="angle-badge ${sClass}">${sLabel}</span></td>
+      <td class="age-cell">${escHtml(a.age || '')}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="topic-section">
+    <div class="topic-header">
+      <span class="topic-icon">${FOCUS_ICON[focus]}</span>
+      <span class="topic-name">${focus}</span>
+      <span class="topic-count">${articles.length} articles · ${outletCount} sources</span>
+    </div>
+    <div class="matrix-scroll">
+      <table>
+        <thead><tr><th>SOURCE</th><th>HEADLINE</th><th>ANGLE</th><th>AGE</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModalFromData(dataStr) {
+  const a = JSON.parse(dataStr);
+  openModal(JSON.stringify(a), a.outletId, a.outletName, a.outletColor);
+}
+
+function openModal(itemStr, outletId, outletName, outletColor) {
+  const item = typeof itemStr === 'string' ? JSON.parse(itemStr) : itemStr;
+  const sentiment = item.sentiment || classifySentiment(outletId, item.title || '');
+  const sClass = 's-' + sentiment;
+  const sLabel = SENTIMENT_LABELS[sentiment] || 'Neutral';
+  const focus = item.focus || classifyFocus(item.title || '', item.snippet || '');
+
+  document.getElementById('modal-meta').innerHTML = `
+    <span class="source-badge" style="font-size:11px;padding:3px 8px;color:${outletColor};background:${outletColor}22;border:1px solid ${outletColor}44">${escHtml(outletName)}</span>
+    <span class="angle-badge ${sClass}" style="font-size:9px;padding:3px 7px">${sLabel}</span>
+    <span style="font-size:10px;color:#777">${FOCUS_ICON[focus]} ${focus}</span>`;
+  document.getElementById('modal-title').textContent = item.title || '';
+  document.getElementById('modal-snippet').textContent = item.snippet || '';
+  document.getElementById('modal-age').textContent = item.age || '';
+  document.getElementById('modal-link').href = item.url || '#';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s || '').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  document.getElementById('empty').style.display = 'block';
+  document.getElementById('view-cards').style.display = 'none';
+  document.getElementById('view-matrix').style.display = 'none';
+  // Auto-load on startup
+  loadNews();
+});
+</script>
+</body>
+</html>
